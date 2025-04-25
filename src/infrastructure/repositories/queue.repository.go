@@ -1,6 +1,7 @@
 package InfrastructureRepositories
 
 import (
+	"errors"
 	"fmt"
 	DomainEntities "lean-queue/src/domain/entities"
 	"log"
@@ -68,6 +69,12 @@ func (repository *QueueRepository) Save(message DomainEntities.QueueEntity) erro
 	connection := repository.connect()
 	defer connection.Close()
 
+	if connection == nil {
+		return errors.New("database connection failed")
+	}
+
+	fmt.Printf("Message full representation: %+v\n", message)
+
 	stmt, err := connection.Prepare(`
         INSERT INTO queue_messages (
             id,
@@ -86,12 +93,19 @@ func (repository *QueueRepository) Save(message DomainEntities.QueueEntity) erro
 	}
 	defer stmt.Close()
 
+	var reservedAtStr interface{} = nil
+	if message.GetReservedAt() != nil {
+		reservedAtStr = message.GetReservedAt().Format("2006-01-02 15:04:05.999999-07:00")
+	}
+
+	publishedAtStr := message.GetPublishedAt().Format("2006-01-02 15:04:05.999999-07:00")
+
 	_, err = stmt.Exec(
 		message.GetId(),
 		message.GetName().GetValue(),
 		message.GetMessage().GetValue(),
-		message.GetPublishedAt().Unix(),
-		message.GetReservedAt().Unix(),
+		publishedAtStr,
+		reservedAtStr,
 		message.GetReservedBy(),
 		message.GetReservedCount(),
 		message.GetReservedInfo(),
@@ -117,8 +131,8 @@ func (repository *QueueRepository) GetById(id string) (*DomainEntities.QueueEnti
 	var messageId string
 	var name string
 	var message string
-	var publishedAtUnix int64
-	var reservedAtUnix int64
+	var publishedAtStr string
+	var reservedAtStr sql.NullString
 	var reservedBy string
 	var reservedCount int
 	var reservedInfo string
@@ -127,8 +141,8 @@ func (repository *QueueRepository) GetById(id string) (*DomainEntities.QueueEnti
 		&messageId,
 		&name,
 		&message,
-		&publishedAtUnix,
-		&reservedAtUnix,
+		&publishedAtStr,
+		&reservedAtStr,
 		&reservedBy,
 		&reservedCount,
 		&reservedInfo,
@@ -141,8 +155,19 @@ func (repository *QueueRepository) GetById(id string) (*DomainEntities.QueueEnti
 		return nil, err
 	}
 
-	publishedAt := time.Unix(publishedAtUnix, 0)
-	reservedAt := time.Unix(reservedAtUnix, 0)
+	publishedAt, err := time.Parse("2006-01-02 15:04:05.999999-07:00", publishedAtStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse published_at date: %w", err)
+	}
+
+	var reservedAt *time.Time
+	if reservedAtStr.Valid && reservedAtStr.String != "" {
+		parsedReservedAt, err := time.Parse("2006-01-02 15:04:05.999999-07:00", reservedAtStr.String)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse reserved_at date: %w", err)
+		}
+		reservedAt = &parsedReservedAt
+	}
 
 	nameEntity, err := DomainEntities.NewQueueName(name)
 	if err != nil {
@@ -154,18 +179,18 @@ func (repository *QueueRepository) GetById(id string) (*DomainEntities.QueueEnti
 		return nil, err
 	}
 
-	queueEntity := DomainEntities.NewQueue(
+	queueEntity, err := DomainEntities.NewQueue(
 		&messageId,
 		*nameEntity,
 		*messageEntity,
 		publishedAt,
-		&reservedAt,
+		reservedAt,
 		&reservedBy,
 		&reservedCount,
 		&reservedInfo,
 	)
 
-	return queueEntity, nil
+	return queueEntity, err
 }
 
 func (repository *QueueRepository) GetNextByName(name DomainEntities.QueueNameEntity, afterTime time.Time, limit int) ([]DomainEntities.QueueEntity, error) {
@@ -175,7 +200,7 @@ func (repository *QueueRepository) GetNextByName(name DomainEntities.QueueNameEn
 	stmt, err := connection.Prepare(`
         SELECT id, name, message, published_at, reserved_at, reserved_by, reserved_count, reserved_info
         FROM queue_messages
-        WHERE name = ? AND (reserved_at < ? OR reserved_at = 0)
+        WHERE name = ? AND (reserved_at < ? OR reserved_at IS NULL)
         ORDER BY published_at ASC
         LIMIT ?
     `)
@@ -184,7 +209,8 @@ func (repository *QueueRepository) GetNextByName(name DomainEntities.QueueNameEn
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query(name.GetValue(), afterTime.Unix(), limit)
+	afterTimeStr := afterTime.Format("2006-01-02 15:04:05.999999-07:00")
+	rows, err := stmt.Query(name.GetValue(), afterTimeStr, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -196,8 +222,8 @@ func (repository *QueueRepository) GetNextByName(name DomainEntities.QueueNameEn
 		var messageId string
 		var nameStr string
 		var messageStr string
-		var publishedAtUnix int64
-		var reservedAtUnix int64
+		var publishedAtStr string
+		var reservedAtStr sql.NullString
 		var reservedBy string
 		var reservedCount int
 		var reservedInfo string
@@ -206,8 +232,8 @@ func (repository *QueueRepository) GetNextByName(name DomainEntities.QueueNameEn
 			&messageId,
 			&nameStr,
 			&messageStr,
-			&publishedAtUnix,
-			&reservedAtUnix,
+			&publishedAtStr,
+			&reservedAtStr,
 			&reservedBy,
 			&reservedCount,
 			&reservedInfo,
@@ -216,8 +242,19 @@ func (repository *QueueRepository) GetNextByName(name DomainEntities.QueueNameEn
 			return nil, err
 		}
 
-		publishedAt := time.Unix(publishedAtUnix, 0)
-		reservedAt := time.Unix(reservedAtUnix, 0)
+		publishedAt, err := time.Parse("2006-01-02 15:04:05.999999-07:00", publishedAtStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse published_at date: %w", err)
+		}
+
+		var reservedAt *time.Time
+		if reservedAtStr.Valid && reservedAtStr.String != "" {
+			parsedReservedAt, err := time.Parse("2006-01-02 15:04:05.999999-07:00", reservedAtStr.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse reserved_at date: %w", err)
+			}
+			reservedAt = &parsedReservedAt
+		}
 
 		nameEntity, err := DomainEntities.NewQueueName(nameStr)
 		if err != nil {
@@ -229,16 +266,20 @@ func (repository *QueueRepository) GetNextByName(name DomainEntities.QueueNameEn
 			return nil, err
 		}
 
-		queueEntity := DomainEntities.NewQueue(
+		queueEntity, err := DomainEntities.NewQueue(
 			&messageId,
 			*nameEntity,
 			*messageEntity,
 			publishedAt,
-			&reservedAt,
+			reservedAt,
 			&reservedBy,
 			&reservedCount,
 			&reservedInfo,
 		)
+
+		if err != nil {
+			return nil, err
+		}
 
 		messages = append(messages, *queueEntity)
 	}
