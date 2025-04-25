@@ -140,9 +140,8 @@ func run() {
 
 	if viper.GetString("server.method") == "http" {
 		log.Printf("Server started at port %s\n", config.Server.Port)
-		http.ListenAndServe("0.0.0.0:"+config.Server.Port, handler)
 		server := &http.Server{
-			Addr:         "127.0.0.1:" + config.Server.Port,
+			Addr:         "0.0.0.0:" + config.Server.Port,
 			Handler:      handler,
 			ReadTimeout:  120 * time.Second,
 			WriteTimeout: 120 * time.Second,
