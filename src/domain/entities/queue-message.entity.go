@@ -1,6 +1,7 @@
 package DomainEntities
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,11 +42,48 @@ type QueueEntity struct {
 	reservedInfo  *string
 }
 
-func NewQueue(id *string, name QueueNameEntity, message QueueMessageEntity, publishedAt time.Time, reservedAt *time.Time, reservedBy *string, reservedCount *int, reservedInfo *string) *QueueEntity {
+func NewQueue(
+	id *string,
+	name QueueNameEntity,
+	message QueueMessageEntity,
+	publishedAt time.Time,
+	reservedAt *time.Time,
+	reservedBy *string,
+	reservedCount *int,
+	reservedInfo *string,
+) (*QueueEntity, error) {
 
 	if id == nil {
 		newUuid := uuid.New().String()
 		id = &newUuid
+	}
+
+	if name.value == "" {
+		return nil, errors.New("queue name cannot be empty")
+	}
+
+	if message.value == "" {
+		return nil, errors.New("queue message cannot be empty")
+	}
+
+	if publishedAt.IsZero() {
+		return nil, errors.New("publishedAt cannot be zero")
+	}
+
+	if reservedAt != nil && reservedAt.IsZero() {
+		return nil, errors.New("reservedAt cannot be zero")
+	}
+
+	if reservedBy != nil && *reservedBy == "" {
+		return nil, errors.New("reservedBy cannot be empty")
+	}
+
+	if reservedCount != nil && *reservedCount < 0 {
+		return nil, errors.New("reservedCount cannot be negative")
+	}
+
+	if reservedInfo != nil && *reservedInfo == "" {
+		return nil, errors.New("reservedInfo cannot be empty")
 	}
 
 	return &QueueEntity{
@@ -57,7 +95,7 @@ func NewQueue(id *string, name QueueNameEntity, message QueueMessageEntity, publ
 		reservedBy:    reservedBy,
 		reservedCount: reservedCount,
 		reservedInfo:  reservedInfo,
-	}
+	}, nil
 }
 
 func (qm *QueueEntity) GetId() string {
