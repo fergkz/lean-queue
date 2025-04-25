@@ -1,6 +1,7 @@
 package InfrastructureControllers
 
 import (
+	"encoding/json"
 	ApplicationUsecases "lean-queue/src/application/usecases"
 	DomainRepositories "lean-queue/src/domain/repositories"
 	"net/http"
@@ -23,10 +24,23 @@ func (controller *publishMessageController) Handle(w http.ResponseWriter, r *htt
 		controller.queueRepository,
 	)
 
-	queueName := r.URL.Query().Get("queue_name")
-	message := r.URL.Query().Get("message")
+	type requestBody struct {
+		QueueName string `json:"queue_name"`
+		Message   string `json:"message"`
+	}
 
-	err := usecase.Handle(queueName, message)
+	var body requestBody
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		http.Error(w, "Erro ao ler o corpo da requisição: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	queueName := body.QueueName
+	message := body.Message
+
+	err = usecase.Handle(queueName, message)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

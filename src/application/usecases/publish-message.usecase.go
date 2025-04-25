@@ -19,6 +19,7 @@ func NewPublishMessageUsecase(
 }
 
 func (usecase *publishMessageUsecase) Handle(queueName string, message string) error {
+
 	queueNameEntity, err := DomainEntities.NewQueueName(queueName)
 	if err != nil {
 		return err
@@ -29,7 +30,11 @@ func (usecase *publishMessageUsecase) Handle(queueName string, message string) e
 		return err
 	}
 
-	queueEntity := DomainEntities.NewQueue(nil, *queueNameEntity, *messageEntity, time.Now(), nil, nil, nil, nil)
+	queueEntity, err := DomainEntities.NewQueue(nil, *queueNameEntity, *messageEntity, time.Now(), nil, nil, nil, nil)
+
+	if err != nil {
+		return err
+	}
 
 	err = usecase.queueRepository.Save(*queueEntity)
 	if err != nil {
