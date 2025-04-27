@@ -24,7 +24,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer logFile.Close()
-	// log.SetOutput(logFile)
+	log.SetOutput(logFile)
 	log.Println("Iniciando...")
 
 	safeGoRoutine(run)
