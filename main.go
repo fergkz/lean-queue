@@ -117,8 +117,21 @@ func run() {
 	})
 	apiRouter.StrictSlash(true)
 
+	router.HandleFunc(
+		"/",
+		func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("OK - Carregado."))
+		},
+	).Methods("GET")
+
 	router.HandleFunc("/alive", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Alive")
+		fmt.Fprintf(w, "OK")
+	})
+
+	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Health")
 		fmt.Fprintf(w, "OK")
 	})
 
