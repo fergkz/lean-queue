@@ -402,3 +402,24 @@ func (repository *QueueRepository) GetAndReserveMessages(
 
 	return messages, nil
 }
+
+func (repository *QueueRepository) RemoveById(id string) error {
+	connection := repository.connect()
+	defer connection.Close()
+
+	stmt, err := connection.Prepare(`
+		DELETE FROM queue_messages
+		WHERE id = ?
+	`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

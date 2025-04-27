@@ -131,9 +131,11 @@ func run() {
 	)
 
 	controllerPublishMessage := InfrastructureControllers.NewPublishMessageController(repositoryQueue)
+	controllerRemoveMessage := InfrastructureControllers.NewRemoveMessageController(repositoryQueue)
 	controllerGetAndReserveNextMessages := InfrastructureControllers.NewGetAndReserveNextMessagesController(repositoryQueue)
 
 	apiRouter.HandleFunc("/message", controllerPublishMessage.Handle).Methods("POST")
+	apiRouter.HandleFunc("/message", controllerRemoveMessage.Handle).Methods("DELETE")
 	apiRouter.HandleFunc("/message/next", controllerGetAndReserveNextMessages.Handle).Methods("GET")
 
 	if viper.GetString("server.method") == "http" {
