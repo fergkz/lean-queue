@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	InfrastructureControllers "lean-queue/src/infrastructure/controllers"
 	InfrastructureRepositories "lean-queue/src/infrastructure/repositories"
 	"log"
@@ -18,15 +19,16 @@ import (
 )
 
 func main() {
-	currentFormattedTime := time.Now().Format("2006-01-02")
-	logFile, err := os.Create("log-Main[" + currentFormattedTime + "].log")
+	currentFormattedTime := time.Now().Format("2006-01")
+	logFile, err := os.Create("log-main[" + currentFormattedTime + "].log")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer logFile.Close()
-	log.SetOutput(logFile)
-	log.Println("Iniciando...")
 
+	multiWriter := io.MultiWriter(logFile, os.Stdout)
+	log.SetOutput(multiWriter)
+	log.Println("Iniciando...")
 	safeGoRoutine(run)
 }
 
@@ -64,17 +66,7 @@ func run() {
 
 	viper.Unmarshal(config)
 
-	log.Println("Server starting...")
-	log.Println("Server method:", config.Server.Method)
-
-	router := mux.NewRouter()
-	router.StrictSlash(true)
-
-	router.Methods("OPTIONS").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "*")
-	})
+	router := mux.NewRouter().StrictSlash(true)
 
 	c := cors.New(cors.Options{
 		AllowCredentials: true,
@@ -83,20 +75,20 @@ func run() {
 		AllowedMethods:   []string{"GET", "HEAD", "POST", "PUT", "OPTIONS"},
 	})
 	handler := c.Handler(router)
+	router.StrictSlash(true)
 
-	apiRouter := router.PathPrefix("/v1").Subrouter()
-	apiRouter.Use(func(next http.Handler) http.Handler {
+	apiV1Router := router.PathPrefix("/v1").Subrouter()
+	apiV1Router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS, DELETE")
-			w.Header().Set("Access-Control-Expose-Headers", "*")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 			if r.Method == "OPTIONS" {
 				return
 			}
 
-			token := r.Header.Get("Access-Token")
+			token := r.Header.Get("ApiAuthorization")
 
 			ok := false
 			for _, k := range config.Server.ApiKeys {
@@ -107,7 +99,6 @@ func run() {
 			}
 
 			if ok {
-				w.Header().Set("Access-Control-Allow-Origin", "*")
 				next.ServeHTTP(w, r)
 			} else {
 				w.WriteHeader(http.StatusUnauthorized)
@@ -115,7 +106,23 @@ func run() {
 			}
 		})
 	})
-	apiRouter.StrictSlash(true)
+	apiV1Router.StrictSlash(true)
+
+	repositoryQueue := InfrastructureRepositories.NewQueueRepository(
+		viper.GetString("db.host"),
+		viper.GetString("db.port"),
+		viper.GetString("db.user"),
+		viper.GetString("db.password"),
+		viper.GetString("db.db_name"),
+	)
+
+	controllerPublishMessage := InfrastructureControllers.NewPublishMessageController(repositoryQueue)
+	controllerRemoveMessage := InfrastructureControllers.NewRemoveMessageController(repositoryQueue)
+	controllerGetAndReserveNextMessages := InfrastructureControllers.NewGetAndReserveNextMessagesController(repositoryQueue)
+
+	apiV1Router.HandleFunc("/message", controllerPublishMessage.Handle).Methods("POST")
+	apiV1Router.HandleFunc("/message", controllerRemoveMessage.Handle).Methods("DELETE")
+	apiV1Router.HandleFunc("/message/next", controllerGetAndReserveNextMessages.Handle).Methods("GET")
 
 	router.HandleFunc(
 		"/",
@@ -135,23 +142,7 @@ func run() {
 		fmt.Fprintf(w, "OK")
 	})
 
-	repositoryQueue := InfrastructureRepositories.NewQueueRepository(
-		viper.GetString("db.host"),
-		viper.GetString("db.port"),
-		viper.GetString("db.user"),
-		viper.GetString("db.password"),
-		viper.GetString("db.db_name"),
-	)
-
-	controllerPublishMessage := InfrastructureControllers.NewPublishMessageController(repositoryQueue)
-	controllerRemoveMessage := InfrastructureControllers.NewRemoveMessageController(repositoryQueue)
-	controllerGetAndReserveNextMessages := InfrastructureControllers.NewGetAndReserveNextMessagesController(repositoryQueue)
-
-	apiRouter.HandleFunc("/message", controllerPublishMessage.Handle).Methods("POST")
-	apiRouter.HandleFunc("/message", controllerRemoveMessage.Handle).Methods("DELETE")
-	apiRouter.HandleFunc("/message/next", controllerGetAndReserveNextMessages.Handle).Methods("GET")
-
-	if viper.GetString("server.method") == "http" {
+	if config.Server.Method == "http" {
 		log.Printf("Server started at port %s\n", config.Server.Port)
 		server := &http.Server{
 			Addr:         "0.0.0.0:" + config.Server.Port,
