@@ -32,14 +32,15 @@ func (qm QueueMessageEntity) GetValue() string {
 }
 
 type QueueEntity struct {
-	id            string
-	name          QueueNameEntity
-	message       QueueMessageEntity
-	publishedAt   time.Time
-	reservedAt    *time.Time
-	reservedBy    *string
-	reservedCount *int
-	reservedInfo  *string
+	id             string
+	name           QueueNameEntity
+	message        QueueMessageEntity
+	publishedAt    time.Time
+	reservedAt     *time.Time
+	reservedBy     *string
+	reservedCount  *int
+	reservedInfo   *string
+	reserveExpires time.Time
 }
 
 func NewQueue(
@@ -51,6 +52,7 @@ func NewQueue(
 	reservedBy *string,
 	reservedCount *int,
 	reservedInfo *string,
+	reserveExpires time.Time,
 ) (*QueueEntity, error) {
 
 	if id == nil {
@@ -87,14 +89,15 @@ func NewQueue(
 	}
 
 	return &QueueEntity{
-		id:            *id,
-		name:          name,
-		message:       message,
-		publishedAt:   publishedAt,
-		reservedAt:    reservedAt,
-		reservedBy:    reservedBy,
-		reservedCount: reservedCount,
-		reservedInfo:  reservedInfo,
+		id:             *id,
+		name:           name,
+		message:        message,
+		publishedAt:    publishedAt,
+		reservedAt:     reservedAt,
+		reservedBy:     reservedBy,
+		reservedCount:  reservedCount,
+		reservedInfo:   reservedInfo,
+		reserveExpires: reserveExpires,
 	}, nil
 }
 
@@ -128,4 +131,8 @@ func (qm *QueueEntity) GetReservedCount() *int {
 
 func (qm *QueueEntity) GetReservedInfo() *string {
 	return qm.reservedInfo
+}
+
+func (qm *QueueEntity) GetReserveExpires() time.Time {
+	return qm.reserveExpires
 }

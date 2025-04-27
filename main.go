@@ -98,9 +98,6 @@ func run() {
 
 			token := r.Header.Get("Access-Token")
 
-			log.Println("Token:", token)
-			log.Println("API Keys:", config.Server.ApiKeys)
-
 			ok := false
 			for _, k := range config.Server.ApiKeys {
 				if k == token {
@@ -111,7 +108,6 @@ func run() {
 
 			if ok {
 				w.Header().Set("Access-Control-Allow-Origin", "*")
-				w.WriteHeader(http.StatusOK)
 				next.ServeHTTP(w, r)
 			} else {
 				w.WriteHeader(http.StatusUnauthorized)
@@ -135,8 +131,10 @@ func run() {
 	)
 
 	controllerPublishMessage := InfrastructureControllers.NewPublishMessageController(repositoryQueue)
+	controllerGetAndReserveNextMessages := InfrastructureControllers.NewGetAndReserveNextMessagesController(repositoryQueue)
 
 	apiRouter.HandleFunc("/message", controllerPublishMessage.Handle).Methods("POST")
+	apiRouter.HandleFunc("/message/next", controllerGetAndReserveNextMessages.Handle).Methods("GET")
 
 	if viper.GetString("server.method") == "http" {
 		log.Printf("Server started at port %s\n", config.Server.Port)

@@ -30,7 +30,7 @@ func (usecase *publishMessageUsecase) Handle(queueName string, message string) e
 		return err
 	}
 
-	queueEntity, err := DomainEntities.NewQueue(nil, *queueNameEntity, *messageEntity, time.Now(), nil, nil, nil, nil)
+	queueEntity, err := DomainEntities.NewQueue(nil, *queueNameEntity, *messageEntity, time.Now(), nil, nil, nil, nil, time.Now())
 
 	if err != nil {
 		return err

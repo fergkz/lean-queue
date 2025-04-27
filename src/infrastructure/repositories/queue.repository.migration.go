@@ -34,6 +34,7 @@ func (repository *QueueRepository) MigrateSchema() error {
             reserved_by VARCHAR(255) NULL,
             reserved_count INT DEFAULT 0,
             reserved_info TEXT NULL,
+			reserve_expires DATETIME(6) NOT NULL,
             PRIMARY KEY (id),
             INDEX idx_name_reserved_at (name, reserved_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`,
