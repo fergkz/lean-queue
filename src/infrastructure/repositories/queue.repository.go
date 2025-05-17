@@ -236,6 +236,129 @@ func (repository *QueueRepository) GetById(id string) (*DomainEntities.QueueEnti
 	return queueEntity, err
 }
 
+func (repository *QueueRepository) GetMessages(
+	queueName DomainEntities.QueueNameEntity,
+	limit int,
+) ([]DomainEntities.QueueEntity, error) {
+	connection := repository.connect()
+	defer connection.Close()
+
+	tx, err := connection.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("could not begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
+	stmt, err := tx.Prepare(`
+        SELECT id, name, message, published_at, reserved_at, reserved_by, reserved_count, reserved_info, reserve_expires
+        FROM queue_messages
+        WHERE name = ? 
+        ORDER BY published_at ASC
+        LIMIT ?
+    `)
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.Query(queueName.GetValue(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []DomainEntities.QueueEntity
+	var messageIds []string
+
+	for rows.Next() {
+		var messageId string
+		var nameStr string
+		var messageStr string
+		var publishedAtStr string
+		var reservedAtStr sql.NullString
+		var reservedBy *string
+		var reservedCount *int
+		var reservedInfo *string
+		var reserveExpiresStr sql.NullString
+
+		err = rows.Scan(
+			&messageId,
+			&nameStr,
+			&messageStr,
+			&publishedAtStr,
+			&reservedAtStr,
+			&reservedBy,
+			&reservedCount,
+			&reservedInfo,
+			&reserveExpiresStr,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		publishedAt, err := parseDateTime(publishedAtStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse published_at date: %w", err)
+		}
+
+		nameEntity, err := DomainEntities.NewQueueName(nameStr)
+		if err != nil {
+			return nil, err
+		}
+
+		messageEntity, err := DomainEntities.NewQueueMessage(messageStr)
+		if err != nil {
+			return nil, err
+		}
+
+		if reservedCount == nil {
+			reservedCount = new(int)
+			*reservedCount = 0
+		}
+
+		reservedAt, err := parseNullableDateTime(reservedAtStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse reserved_at date: %w", err)
+		}
+
+		reserveExpires, err := parseNullableDateTime(reserveExpiresStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse reserve_expires date: %w", err)
+		}
+
+		*reservedCount = *reservedCount + 1
+
+		queueEntity, err := DomainEntities.NewQueue(
+			&messageId,
+			*nameEntity,
+			*messageEntity,
+			publishedAt,
+			reservedAt,
+			reservedBy,
+			reservedCount,
+			reservedInfo,
+			*reserveExpires,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		messages = append(messages, *queueEntity)
+		messageIds = append(messageIds, messageId)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return messages, nil
+}
+
 func (repository *QueueRepository) GetAndReserveMessages(
 	queueName DomainEntities.QueueNameEntity,
 	limit int,

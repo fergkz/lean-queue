@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Fila de Notificações de Pagamento</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #f7f9fc;
+                margin: 0;
+                padding: 20px;
+            }
+
+            h1 {
+                color: #333;
+                text-align: center;
+            }
+
+            #queue-container {
+                max-width: 800px;
+                margin: auto;
+                margin-top: 20px;
+            }
+
+            .message-card {
+                background: white;
+                padding: 15px 20px;
+                margin-bottom: 15px;
+                border-radius: 10px;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+                transition: all 0.3s ease;
+            }
+
+            .message-card:hover {
+                transform: translateY(-2px);
+            }
+
+            .message-header {
+                font-weight: bold;
+                color: #2a7de1;
+            }
+
+            .timestamp {
+                font-size: 0.9em;
+                color: #888;
+                margin-top: 5px;
+            }
+        </style>
+    </head>
+
+    <body>
+        <h1>Fila de Notificações de Pagamento</h1>
+        <label>
+            <input type="checkbox" id="auto-refresh" checked>
+            Atualização automática
+        </label>
+        <button id="manual-refresh" style="display: none; margin-left: 10px;">Atualizar</button>
+        <div id="queue-container"></div>
+
+        <script>
+            const queueContainer = document.getElementById("queue-container");
+            const autoRefreshCheckbox = document.getElementById("auto-refresh");
+            const manualRefreshBtn = document.getElementById("manual-refresh");
+            let intervalId = null;
+            let lastResponseHash = "";  // Armazenar um "hash" da última resposta
+
+            async function fetchMessages() {
+                try {
+                    const response = await fetch("http://localhost:8080/v1/message/queue/payment-notification?limit=100", {
+                        headers: {
+                            "Accept": "*/*",
+                            "Content-Type": "application/json",
+                            "ApiAuthorization": "macrodroidkey9668",
+                        }
+                    });
+
+                    if (!response.ok) {
+                        console.error("Erro na resposta da API:", response.statusText);
+                        return;
+                    }
+
+                    const data = await response.json();
+                    if (!Array.isArray(data)) return;
+
+                    // Criar um hash simples da resposta atual
+                    const currentResponseHash = JSON.stringify(data);
+
+                    // Se a resposta for diferente da anterior, recriar toda a lista
+                    if (currentResponseHash !== lastResponseHash) {
+                        lastResponseHash = currentResponseHash;
+                        queueContainer.innerHTML = ""; // Limpar todos os cards existentes
+
+                        // Adicionar todos os itens da resposta
+                        data.forEach(msg => {
+                            addMessageToDOM(msg);
+                        });
+                    }
+
+                } catch (err) {
+                    console.error("Erro ao buscar mensagens:", err);
+                }
+            }
+
+            function addMessageToDOM(message) {
+                const card = document.createElement("div");
+                card.className = "message-card";
+
+                const header = document.createElement("div");
+                header.className = "message-header";
+                header.textContent = message.message;
+
+                const timestamp = document.createElement("div");
+                timestamp.className = "timestamp";
+                timestamp.textContent = `Publicado em: ${new Date(message.published_at).toLocaleString()}`;
+
+                card.appendChild(header);
+                card.appendChild(timestamp);
+                queueContainer.prepend(card); // mais recente no topo
+            }
+
+            function startAutoRefresh() {
+                if (intervalId) clearInterval(intervalId);
+                intervalId = setInterval(fetchMessages, 500);
+            }
+
+            function stopAutoRefresh() {
+                if (intervalId) clearInterval(intervalId);
+                intervalId = null;
+            }
+
+            autoRefreshCheckbox.addEventListener("change", () => {
+                if (autoRefreshCheckbox.checked) {
+                    manualRefreshBtn.style.display = "none";
+                    startAutoRefresh();
+                } else {
+                    manualRefreshBtn.style.display = "inline-block";
+                    stopAutoRefresh();
+                }
+            });
+
+            manualRefreshBtn.addEventListener("click", fetchMessages);
+
+            // Inicialização
+            if (autoRefreshCheckbox.checked) {
+                startAutoRefresh();
+            }
+            fetchMessages();
+        </script>
+    </body>
+
+</html>

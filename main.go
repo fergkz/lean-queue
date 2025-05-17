@@ -119,10 +119,12 @@ func run() {
 	controllerPublishMessage := InfrastructureControllers.NewPublishMessageController(repositoryQueue)
 	controllerRemoveMessage := InfrastructureControllers.NewRemoveMessageController(repositoryQueue)
 	controllerGetAndReserveNextMessages := InfrastructureControllers.NewGetAndReserveNextMessagesController(repositoryQueue)
+	controllerGetMessagesOnQueue := InfrastructureControllers.NewGetMessagesOnQueueController(repositoryQueue)
 
 	apiV1Router.HandleFunc("/message", controllerPublishMessage.Handle).Methods("POST")
 	apiV1Router.HandleFunc("/message", controllerRemoveMessage.Handle).Methods("DELETE")
 	apiV1Router.HandleFunc("/message/next", controllerGetAndReserveNextMessages.Handle).Methods("GET")
+	apiV1Router.HandleFunc("/message/queue/{queue_name}", controllerGetMessagesOnQueue.Handle).Methods("GET")
 
 	router.HandleFunc(
 		"/",

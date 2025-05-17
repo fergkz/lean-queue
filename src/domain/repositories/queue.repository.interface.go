@@ -17,5 +17,9 @@ type QueueRepositoryInterface interface {
 		updateReservedInfo *string,
 		updateReservedExpires *time.Time,
 	) ([]DomainEntities.QueueEntity, error)
+	GetMessages(
+		queueName DomainEntities.QueueNameEntity,
+		limit int,
+	) ([]DomainEntities.QueueEntity, error)
 	RemoveById(id string) error
 }
