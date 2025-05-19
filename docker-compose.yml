@@ -13,7 +13,8 @@ services:
       MYSQL_PASSWORD: dbpassword
     volumes:
       - ./data/mysql:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password
+      - ./mysql-config:/etc/mysql/conf.d
+    command: --default-authentication-plugin=mysql_native_password --max_connections=500
     healthcheck:
       test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
       timeout: 5s
