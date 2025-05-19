@@ -19,6 +19,7 @@ type QueueRepository struct {
 	dbUser     string
 	dbPassword string
 	dbName     string
+	dbPool     *sql.DB
 }
 
 func NewQueueRepository(
@@ -36,6 +37,8 @@ func NewQueueRepository(
 		dbPassword: dbPassword,
 		dbName:     dbName,
 	}
+
+	repository.dbPool = repository.connect()
 
 	if err := repository.MigrateSchema(); err != nil {
 		log.Printf("Warning: Failed to migrate database schema: %v", err)
@@ -60,7 +63,7 @@ func (repository *QueueRepository) connect() *sql.DB {
 
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxLifetime(2 * time.Minute)
 
 	return db
 }
@@ -149,10 +152,7 @@ func (repository *QueueRepository) Save(message DomainEntities.QueueEntity) erro
 }
 
 func (repository *QueueRepository) GetById(id string) (*DomainEntities.QueueEntity, error) {
-	connection := repository.connect()
-	defer connection.Close()
-
-	stmt, err := connection.Prepare(`
+	stmt, err := repository.dbPool.Prepare(`
         SELECT id, name, message, published_at, reserved_at, reserved_by, reserved_count, reserved_info, reserve_expires
         FROM queue_messages
         WHERE id = ?
