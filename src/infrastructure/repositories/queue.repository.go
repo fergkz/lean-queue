@@ -272,7 +272,6 @@ func (repository *QueueRepository) GetMessages(
 	defer rows.Close()
 
 	var messages []DomainEntities.QueueEntity
-	var messageIds []string
 
 	for rows.Next() {
 		var messageId string
@@ -349,7 +348,6 @@ func (repository *QueueRepository) GetMessages(
 		}
 
 		messages = append(messages, *queueEntity)
-		messageIds = append(messageIds, messageId)
 	}
 
 	if err = rows.Err(); err != nil {
@@ -394,9 +392,6 @@ func (repository *QueueRepository) GetAndReserveMessages(
 		return nil, err
 	}
 	defer stmt.Close()
-
-	nowTime := time.Now().UTC()
-	nowTimeStr := nowTime.Format("2006-01-02 15:04:05.999999")
 
 	rows, err := stmt.Query(queueName.GetValue(), messagesBefore.UTC().Format("2006-01-02 15:04:05.999999"), limit)
 	if err != nil {
@@ -490,11 +485,8 @@ func (repository *QueueRepository) GetAndReserveMessages(
 	placeholders := make([]string, len(messageIds))
 	args := make([]interface{}, 0, len(messageIds)+1)
 
-	args = append(args, nowTimeStr)
-
 	for i := range messageIds {
 		placeholders[i] = "?"
-		args = append(args, messageIds[i])
 	}
 
 	updateQuery := fmt.Sprintf(`
