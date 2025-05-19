@@ -65,10 +65,25 @@
             const manualRefreshBtn = document.getElementById("manual-refresh");
             let intervalId = null;
             let lastResponseHash = "";  // Armazenar um "hash" da última resposta
+            let queueName = "whatsapp-api-send-number"; // Valor padrão
+
+            // Função para obter o nome da fila da URL
+            function getQueueNameFromURL() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const queue = urlParams.get('queue');
+                return queue || "whatsapp-api-send-number"; // Retorna o valor do parâmetro ou o valor padrão
+            }
+
+            // Atualizar o título da página com o nome da fila
+            function updatePageTitle(queue) {
+                const titleElement = document.querySelector('h1');
+                titleElement.textContent = `Fila de Notificações: ${queue}`;
+                document.title = `Fila: ${queue}`;
+            }
 
             async function fetchMessages() {
                 try {
-                    const response = await fetch("http://localhost:8080/v1/message/queue/payment-notification?limit=100", {
+                    const response = await fetch(`http://localhost:8080/v1/message/queue/${queueName}?limit=100`, {
                         headers: {
                             "Accept": "*/*",
                             "Content-Type": "application/json",
@@ -130,23 +145,35 @@
                 intervalId = null;
             }
 
-            autoRefreshCheckbox.addEventListener("change", () => {
-                if (autoRefreshCheckbox.checked) {
-                    manualRefreshBtn.style.display = "none";
-                    startAutoRefresh();
-                } else {
-                    manualRefreshBtn.style.display = "inline-block";
-                    stopAutoRefresh();
-                }
-            });
-
-            manualRefreshBtn.addEventListener("click", fetchMessages);
-
             // Inicialização
-            if (autoRefreshCheckbox.checked) {
-                startAutoRefresh();
-            }
-            fetchMessages();
+            document.addEventListener("DOMContentLoaded", () => {
+                // Obter o nome da fila da URL
+                queueName = getQueueNameFromURL();
+
+                // Atualizar o título da página
+                updatePageTitle(queueName);
+
+                // Configurar eventos
+                autoRefreshCheckbox.addEventListener("change", () => {
+                    if (autoRefreshCheckbox.checked) {
+                        manualRefreshBtn.style.display = "none";
+                        startAutoRefresh();
+                    } else {
+                        manualRefreshBtn.style.display = "inline-block";
+                        stopAutoRefresh();
+                    }
+                });
+
+                manualRefreshBtn.addEventListener("click", fetchMessages);
+
+                // Iniciar auto-refresh se necessário
+                if (autoRefreshCheckbox.checked) {
+                    startAutoRefresh();
+                }
+
+                // Carregar mensagens iniciais
+                fetchMessages();
+            });
         </script>
     </body>
 
