@@ -38,6 +38,8 @@ func (repository *QueueRepository) MigrateSchema() error {
             PRIMARY KEY (id),
             INDEX idx_name_reserved_at (name, reserved_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`,
+		// Change message TEXT to LONGTEXT
+		2: `ALTER TABLE queue_messages MODIFY message LONGTEXT NOT NULL;`,
 	}
 
 	tx, err := connection.Begin()
